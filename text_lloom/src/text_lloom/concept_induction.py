@@ -245,7 +245,7 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
         min_cluster_size=10,  # Lower to allow more clusters
         min_samples=5,        # Reduce merging
         metric='cosine',      # Better for text embeddings
-        cluster_selection_method='leaf'  # Retain smaller clusters
+        cluster_selection_method='eom'  # Retain smaller clusters
     )
 
     res = hdb.fit(umap_embeddings)
