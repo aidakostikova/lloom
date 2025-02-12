@@ -227,14 +227,14 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
 
     embeddings, tokens = get_embeddings(embed_model, text_vals)
     umap_model = umap.UMAP(
-        n_neighbors=15,
+        n_neighbors=10,
         n_components=5,
-        min_dist=0.0,
+        min_dist=0.1,
         metric='cosine',
     )
     umap_embeddings = umap_model.fit_transform(embeddings)
     hdb = HDBSCAN(
-        min_cluster_size=min_cluster_size, 
+        min_cluster_size=10, 
         metric='euclidean', 
         cluster_selection_method='eom', 
         prediction_data=True
