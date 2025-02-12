@@ -21,8 +21,6 @@ import re
 # Clustering
 from hdbscan import HDBSCAN
 import umap
-from bertopic import BERTopic
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Local imports
 if __package__ is None or __package__ == '':
@@ -223,41 +221,35 @@ async def distill_summarize(text_df, doc_col, doc_id_col, model, n_bullets="2-4"
 
 
 def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model):
+    # OpenAI embeddings with HDBSCAN clustering
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
 
     embeddings, tokens = get_embeddings(embed_model, text_vals)
-
-    # Try reducing embedding dimensionality before clustering
-    from sklearn.decomposition import PCA
-    pca = PCA(n_components=100)  # Reduce dimensionality
-    embeddings = pca.fit_transform(embeddings)
-
     umap_model = umap.UMAP(
-        n_neighbors=10,   # More local neighborhood
-        n_components=10,  # Retain more dimensions
-        min_dist=0.1,     # Allow more cluster separation
-        metric='cosine'
+        n_neighbors=15,
+        n_components=5,
+        min_dist=0.0,
+        metric='cosine',
     )
-
     umap_embeddings = umap_model.fit_transform(embeddings)
     hdb = HDBSCAN(
-        min_cluster_size=10,  # Lower to allow more clusters
-        min_samples=5,        # Reduce merging
-        metric='cosine',      # Better for text embeddings
-        cluster_selection_method='eom'  # Retain smaller clusters
+        min_cluster_size=min_cluster_size, 
+        metric='euclidean', 
+        cluster_selection_method='eom', 
+        prediction_data=True
     )
-
     res = hdb.fit(umap_embeddings)
     clusters = res.labels_
 
+    # Print the number of clusters (excluding noise points labeled as -1)
     num_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
     print(f"Generated {num_clusters} clusters.")
 
-    rows = list(zip(id_vals, text_vals, clusters))
+    rows = list(zip(id_vals, text_vals, clusters)) # id_col, text_col, cluster_id_col
     cluster_df = pd.DataFrame(rows, columns=[doc_id_col, doc_col, cluster_id_col])
     cluster_df = cluster_df.sort_values(by=[cluster_id_col])
-
+    
     return cluster_df, tokens
 
 
