@@ -236,11 +236,15 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
     hdb = HDBSCAN(
         min_cluster_size=min_cluster_size, 
         metric='euclidean', 
-        cluster_selection_method='leaf', 
+        cluster_selection_method='eom', 
         prediction_data=True
     )
     res = hdb.fit(umap_embeddings)
     clusters = res.labels_
+
+    # Print the number of clusters (excluding noise points labeled as -1)
+    num_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
+    print(f"Generated {num_clusters} clusters.")
 
     rows = list(zip(id_vals, text_vals, clusters)) # id_col, text_col, cluster_id_col
     cluster_df = pd.DataFrame(rows, columns=[doc_id_col, doc_col, cluster_id_col])

@@ -1,6 +1,6 @@
 import importlib.metadata
 import pathlib
-
+from pathlib import Path
 import anywidget
 import traitlets
 
@@ -20,11 +20,11 @@ if _DEV:
 else:
   # from `npm run build`
   # Path to static from text_lloom/src/text_lloom (the python package)
-  bundled_assets_dir = pathlib.Path(__file__).parent / "static"
+  bundled_assets_dir = Path("/content/lloom/src")
   ESM = (bundled_assets_dir / "index.js").read_text()
-  CSS = (bundled_assets_dir / "index.css").read_text()
+  #CSS = (bundled_assets_dir / "index.css").read_text()
   ESM_select = (bundled_assets_dir / "index_select.js").read_text()
-  CSS_select = (bundled_assets_dir / "index_select.css").read_text()
+  #CSS_select = (bundled_assets_dir / "index_select.css").read_text()
   
 
 """
@@ -33,7 +33,7 @@ Widget instantiated with anywidget that displays the matrix visualization
 """
 class MatrixWidget(anywidget.AnyWidget):
     _esm = ESM
-    _css = CSS
+    #_css = CSS
     name = traitlets.Unicode().tag(sync=True)
 
     data = traitlets.Unicode().tag(sync=True)  # syncs the widget's `data` property
@@ -49,7 +49,7 @@ Widget instantiated with anywidget that displays the concepts for selection
 """
 class ConceptSelectWidget(anywidget.AnyWidget):
     _esm = ESM_select
-    _css = CSS_select
+    #_css = CSS_select
     name = traitlets.Unicode().tag(sync=True)
 
     data = traitlets.Unicode().tag(sync=True)  # syncs the widget's `data` property
