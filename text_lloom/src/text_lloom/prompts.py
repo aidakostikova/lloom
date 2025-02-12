@@ -83,18 +83,20 @@ Please analyze them and determine whether any PAIRS of themes are **so similar o
 
 Please respond ONLY with a valid JSON in the following format:
 
-{
+{{
     "merge": [ 
-        {
+        {{
             "original_themes": ["<THEME_NAME_A>", "<THEME_NAME_B>"],
             "merged_theme_name": "<THEME_NAME_AB>",
-            "merged_theme_prompt": "<THEME_PROMPT_AB>"
-        }
-    ],
-    "related_but_distinct": [
-        ["<THEME_NAME_C>", "<THEME_NAME_D>"]
+            "merged_theme_prompt": "<THEME_PROMPT_AB>",
+        }},
+        {{
+            "original_themes": ["<THEME_NAME_C>", "<THEME_NAME_D>"],
+            "merged_theme_name": "<THEME_NAME_CD>",
+            "merged_theme_prompt": "<THEME_PROMPT_CD>",
+        }}
     ]
-}
+}}
 """
 
 review_select_prompt = """
