@@ -223,60 +223,38 @@ async def distill_summarize(text_df, doc_col, doc_id_col, model, n_bullets="2-4"
 
 
 def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model):
-    # Extract text and IDs
+    # OpenAI embeddings with HDBSCAN clustering
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
 
-    # Generate OpenAI embeddings
     embeddings, tokens = get_embeddings(embed_model, text_vals)
 
-    # UMAP for dimensionality reduction
     umap_model = umap.UMAP(
-        n_neighbors=30,  
-        n_components=5,  
-        min_dist=0.0,  
+        n_neighbors=30,  # ⬆️ Increase neighborhood size to match BERTopic
+        n_components=5,
+        min_dist=0.0,  # ⬇️ Reduce min_dist to force spread
         metric='cosine'
     )
-    umap_embeddings = umap_model.fit_transform(embeddings)
 
-    # HDBSCAN Clustering
+    umap_embeddings = umap_model.fit_transform(embeddings)
     hdb = HDBSCAN(
-        min_cluster_size=min_cluster_size,  # Use dynamic min_cluster_size
-        min_samples=12,  
-        metric='euclidean',  
-        cluster_selection_method='eom',
+        min_cluster_size=22, 
+        metric='euclidean', 
+        cluster_selection_method='eom', 
         prediction_data=True
     )
+    res = hdb.fit(umap_embeddings)
+    clusters = res.labels_
 
-    # TF-IDF Vectorizer
-    vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
+    # Print the number of clusters (excluding noise points labeled as -1)
+    num_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
+    print(f"Generated {num_clusters} clusters.")
 
-    # BERTopic Model (uses both UMAP + HDBSCAN)
-    topic_model = BERTopic(
-        umap_model=umap_model,   # Use same UMAP model
-        hdbscan_model=hdb,       # Use same HDBSCAN model
-        vectorizer_model=vectorizer,  # Adds TF-IDF features
-        min_topic_size=8,  # Ensures minimum topic size
-    )
-
-    # Fit BERTopic
-    topics, _ = topic_model.fit_transform(text_vals, embeddings)
-
-    # Retrieve topic information
-    topic_info = topic_model.get_topic_info()
-    print(topic_info)  # Print topic details
-
-    # Create DataFrame with Clusters & Topics
-    cluster_df = pd.DataFrame({
-        doc_id_col: id_vals,
-        doc_col: text_vals,
-        cluster_id_col: topics  # Assign BERTopic topic IDs
-    })
-
-    # Sort by Topic ID
+    rows = list(zip(id_vals, text_vals, clusters)) # id_col, text_col, cluster_id_col
+    cluster_df = pd.DataFrame(rows, columns=[doc_id_col, doc_col, cluster_id_col])
     cluster_df = cluster_df.sort_values(by=[cluster_id_col])
-
-    return cluster_df, tokens, topic_model
+    
+    return cluster_df, tokens
 
 
 # Input: text_df (columns: doc_id, doc) 
