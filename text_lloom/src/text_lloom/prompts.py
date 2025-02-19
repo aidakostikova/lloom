@@ -83,20 +83,18 @@ Please analyze them and determine whether any PAIRS of themes are **so similar o
 
 Please respond ONLY with a valid JSON in the following format:
 
-{{
+{
     "merge": [ 
-        {{
+        {
             "original_themes": ["<THEME_NAME_A>", "<THEME_NAME_B>"],
             "merged_theme_name": "<THEME_NAME_AB>",
-            "merged_theme_prompt": "<THEME_PROMPT_AB>",
-        }},
-        {{
-            "original_themes": ["<THEME_NAME_C>", "<THEME_NAME_D>"],
-            "merged_theme_name": "<THEME_NAME_CD>",
-            "merged_theme_prompt": "<THEME_PROMPT_CD>",
-        }}
+            "merged_theme_prompt": "<THEME_PROMPT_AB>"
+        }
+    ],
+    "related_but_distinct": [
+        ["<THEME_NAME_C>", "<THEME_NAME_D>"]
     ]
-}}
+}
 """
 
 review_select_prompt = """
@@ -151,13 +149,23 @@ CONTEXT:
     {concept_prompt}
 
 TASK:
-    For each example, please evaluate the PROMPT by generating a 1-sentence RATIONALE of your thought process and providing a resulting ANSWER of ONE of the following multiple-choice options, including just the letter: 
-    - A: Strongly agree
-    - B: Agree
-    - C: Neither agree nor disagree
-    - D: Disagree
-    - E: Strongly disagree
-    Please also include one 1-sentence QUOTE exactly copied from the example that illustrates this pattern.
+    For each example, please evaluate the PROMPT with a stricter standard:
+    - ONLY assign this pattern if the example **clearly** and **primarily** matches it.
+    - If the example **contains multiple ideas**, choose the **most dominant** limitation and avoid assigning multiple patterns.
+    - Do **NOT** assign the pattern if the connection is **vague, indirect, or secondary**.
+    - If the pattern applies **partially**, but is not the main focus, choose: **C: Neither agree nor disagree**.
+
+    Generate a 1-sentence RATIONALE explaining why the example **directly** aligns with the pattern. If unsure, lean toward exclusion.
+
+    Provide a resulting ANSWER of ONE of the following multiple-choice options, including just the letter: 
+    - A: Strongly agree (The limitation is the **main focus** of the example)
+    - B: Agree (The limitation is **heavily present**, but might share space with others)
+    - C: Neither agree nor disagree (The limitation is **weakly present** or **only indirectly implied**)
+    - D: Disagree (The limitation is **mostly irrelevant** to this example)
+    - E: Strongly disagree (The limitation does **not apply at all**)
+
+    Please also include a 1-sentence QUOTE exactly copied from the example that illustrates this pattern.
+
     Respond with ONLY a JSON with the following format, escaping any quotes within strings with a backslash:
     {{
         "pattern_results": [
