@@ -252,6 +252,77 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
     
     return cluster_df, tokens
 
+def adaptive_cluster_helper(
+    in_df, doc_col, doc_id_col, cluster_id_col, embed_model,
+    min_cluster_size_range=(15, 50),  # Range of min cluster sizes to try
+    min_samples_range=(3, 10),        # Range of min_samples to try
+    umap_n_components_range=(3, 8),   # Range of UMAP components to try
+    max_attempts=10,                  # Max iterations to find good clustering
+    outlier_threshold=0.2,            # Max % of outliers allowed
+    target_cluster_range=(7, 15)      # Desired cluster range
+):
+    id_vals = in_df[doc_id_col].tolist()
+    text_vals = in_df[doc_col].tolist()
+    embeddings, tokens = get_embeddings(embed_model, text_vals)
+
+    best_cluster_df = None
+    best_num_clusters = 0
+    best_outlier_ratio = 1.0
+    attempt = 0
+
+    while attempt < max_attempts:
+        attempt += 1
+        print(f"\n🔄 Attempt {attempt}/{max_attempts}...")
+
+        # Dynamically adjust parameters
+        min_cluster_size = random.randint(*min_cluster_size_range)
+        min_samples = random.randint(*min_samples_range)
+        n_components = random.randint(*umap_n_components_range)
+
+        print(f"🔧 Trying min_cluster_size={min_cluster_size}, min_samples={min_samples}, n_components={n_components}")
+
+        # UMAP dimensionality reduction
+        umap_model = umap.UMAP(
+            n_neighbors=25,
+            n_components=n_components,
+            min_dist=0.1,
+            metric='cosine'
+        )
+        umap_embeddings = umap_model.fit_transform(embeddings)
+
+        # HDBSCAN clustering
+        hdb = HDBSCAN(
+            min_cluster_size=min_cluster_size,
+            min_samples=min_samples,
+            metric='euclidean',
+            cluster_selection_method='eom'
+        )
+        res = hdb.fit(umap_embeddings)
+        clusters = res.labels_
+
+        # Calculate number of clusters and outlier ratio
+        num_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
+        outlier_ratio = np.sum(clusters == -1) / len(clusters)
+
+        print(f"➡ Found {num_clusters} clusters | Outlier Ratio: {outlier_ratio:.2%}")
+
+        # Check if this clustering satisfies criteria
+        if (target_cluster_range[0] <= num_clusters <= target_cluster_range[1]) and (outlier_ratio < outlier_threshold):
+            print("✅ Suitable clustering found!")
+            best_cluster_df = pd.DataFrame(zip(id_vals, text_vals, clusters), columns=[doc_id_col, doc_col, cluster_id_col])
+            best_cluster_df = best_cluster_df.sort_values(by=[cluster_id_col])
+            return best_cluster_df, tokens
+
+        # Keep track of best attempt
+        if abs(num_clusters - np.mean(target_cluster_range)) < abs(best_num_clusters - np.mean(target_cluster_range)) and outlier_ratio < best_outlier_ratio:
+            best_cluster_df = pd.DataFrame(zip(id_vals, text_vals, clusters), columns=[doc_id_col, doc_col, cluster_id_col])
+            best_cluster_df = best_cluster_df.sort_values(by=[cluster_id_col])
+            best_num_clusters = num_clusters
+            best_outlier_ratio = outlier_ratio
+
+    print("⚠ No perfect clustering found, returning best attempt.")
+    return best_cluster_df, tokens
+
 
 # Input: text_df (columns: doc_id, doc) 
 #   --> text could be original, filtered (quotes), and/or summarized (bullets)
