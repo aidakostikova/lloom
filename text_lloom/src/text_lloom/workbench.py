@@ -640,7 +640,7 @@ class lloom:
         # ✅ Check if "Keyphrases" exist in the input DataFrame
         if "Keyphrases" in self.in_df.columns:
             print("✅ Using existing 'Keyphrases' for clustering, skipping summarization.")
-            self.df_bullets = self.in_df[["id", "Keyphrases"]].rename(columns={"Keyphrases": self.doc_col})
+            self.df_bullets = self.in_df[["title", "Keyphrases"]].rename(columns={"Keyphrases": self.doc_col})
         else:
             print("⚠️ 'Keyphrases' column not found, falling back to summarization.")
             # Run summarization (only if Keyphrases don't exist)
