@@ -643,7 +643,7 @@ class lloom:
             print("✅ Using existing 'Keyphrases' for clustering, skipping summarization.")
         
             # Convert list of keyphrases into a single string for clustering
-            self.df_bullets = self.in_df[["id", "Keyphrases"]].copy()
+            self.df_bullets = self.in_df[["title", "Keyphrases"]].copy()
             self.df_bullets[self.doc_col] = self.df_bullets["Keyphrases"].apply(lambda x: "; ".join(x) if isinstance(x, list) else str(x))
             self.df_bullets = self.df_bullets.drop(columns=["Keyphrases"])  # Drop original list column
         else:
