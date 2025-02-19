@@ -686,31 +686,44 @@ class lloom:
                 self.df_bullets = self.df_filtered  # Use filtered df directly if no summarization
     
         # ✅ Now df_bullets (either "Keyphrases" or summarization) is used for clustering
-        df_cluster_in = self.df_bullets
+        df_cluster_in = self.df_bullets  # Initial input for clustering
         synth_doc_col = self.doc_col
         synth_n_concepts = params["synth_n_concepts"]
         concept_col_prefix = "concept"
-    
-        # Perform synthesize step n_synth times
+        
         for i in range(n_synth):
             self.concepts = {}
-    
+        
             step_name = "Cluster"
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
-                df_cluster, _ = adaptive_cluster_helper(
-                    in_df=df_cluster_in, 
-                    doc_col=synth_doc_col,
-                    doc_id_col=self.doc_id_col,
-                    cluster_id_col="cluster_id",
-                    embed_model=self.cluster_model
-                )
-    
+                if i == 0:
+                    # ✅ First iteration: Use adaptive clustering
+                    print("🔄 Using ADAPTIVE clustering for initial grouping...")
+                    df_cluster, _ = adaptive_cluster_helper(
+                        in_df=df_cluster_in,
+                        doc_col=synth_doc_col,
+                        doc_id_col=self.doc_id_col,
+                        cluster_id_col="cluster_id",
+                        embed_model=self.cluster_model
+                    )
+                else:
+                    # ✅ Subsequent iterations: Use classic clustering
+                    print("🔄 Using CLASSIC clustering for generated concepts...")
+                    df_cluster, _ = cluster_helper(
+                        in_df=df_cluster_in,
+                        doc_col=synth_doc_col,
+                        doc_id_col=self.doc_id_col,
+                        min_cluster_size=20,  # Can be parameterized
+                        cluster_id_col="cluster_id",
+                        embed_model=self.cluster_model
+                    )
+        
                 spinner.text = "Done"
                 spinner.ok("✅")
             if debug:
                 display(df_cluster)
-    
+        
             step_name = "Synthesize"
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
@@ -731,7 +744,7 @@ class lloom:
                 spinner.ok("✅")
             if debug:
                 print(synth_logs)
-    
+        
             # Review current concepts (remove low-quality, merge similar)
             if auto_review:
                 step_name = "Review"
@@ -750,23 +763,21 @@ class lloom:
                     spinner.ok("✅")
                 if debug:
                     print(review_logs)
-    
+        
             self.concept_history[i] = self.concepts
             if debug:
-                # Print results
-                print(
-                    f"\n\n{self.highlight_txt('Synthesize', color='blue')} {i + 1}: (n={len(self.concepts)} concepts)")
+                print(f"\n\n{self.highlight_txt('Synthesize', color='blue')} {i + 1}: (n={len(self.concepts)} concepts)")
                 for k, c in self.concepts.items():
                     print(f'- Concept {k}:\n\t{c.name}\n\t- Prompt: {c.prompt}')
-    
-            # Update synthesize params for next iteration
-            df_concepts["synth_doc_col"] = df_concepts[f"{concept_col_prefix}_name"] + ": " + df_concepts[
-                f"{concept_col_prefix}_prompt"]
-            df_cluster_in = df_concepts
+        
+            # ✅ Reduce the number of generated concepts in later iterations
+            df_concepts["synth_doc_col"] = df_concepts[f"{concept_col_prefix}_name"] + ": " + df_concepts[f"{concept_col_prefix}_prompt"]
+            df_cluster_in = df_concepts  # ✅ Feed synthesized concepts for next iteration
             synth_doc_col = "synth_doc_col"
-            synth_n_concepts = math.floor(synth_n_concepts * 0.75)
-    
+            synth_n_concepts = max(1, math.floor(synth_n_concepts * 0.75))
+        
         print("✅ Done with concept generation!")
+
     
 
     def __concepts_to_json(self):
