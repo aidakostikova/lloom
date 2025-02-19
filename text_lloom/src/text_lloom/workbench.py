@@ -638,11 +638,17 @@ class lloom:
             self.df_filtered = self.in_df[[self.doc_id_col, self.doc_col]]
     
         # ✅ Check if "Keyphrases" exist in the input DataFrame
+
         if "Keyphrases" in self.in_df.columns:
             print("✅ Using existing 'Keyphrases' for clustering, skipping summarization.")
-            self.df_bullets = self.in_df[["title", "Keyphrases"]].rename(columns={"Keyphrases": self.doc_col})
+        
+            # Convert list of keyphrases into a single string for clustering
+            self.df_bullets = self.in_df[["id", "Keyphrases"]].copy()
+            self.df_bullets[self.doc_col] = self.df_bullets["Keyphrases"].apply(lambda x: "; ".join(x) if isinstance(x, list) else str(x))
+            self.df_bullets = self.df_bullets.drop(columns=["Keyphrases"])  # Drop original list column
         else:
             print("⚠️ 'Keyphrases' column not found, falling back to summarization.")
+            
             # Run summarization (only if Keyphrases don't exist)
             if custom_prompts.get("distill_summarize") is not None:
                 step_name = "Distill-summarize"
