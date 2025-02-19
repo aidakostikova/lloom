@@ -393,6 +393,10 @@ class lloom:
         
 
     # HELPER FUNCTIONS ================================
+    
+    #### original async def gen ####
+    
+    """
     async def gen(self, seed=None, params=None, n_synth=1, custom_prompts=None, auto_review=True, debug=True):
         if params is None:
             params = self.auto_suggest_parameters(debug=debug)
@@ -575,6 +579,175 @@ class lloom:
             synth_doc_col = "synth_doc_col"
             synth_n_concepts = math.floor(synth_n_concepts * 0.75)
         print("✅ Done with concept generation!")
+        """
+    
+    #### New async def gen (if "Keywords" field exists in JSON, distill_summarize is skipped ####
+    
+    async def gen(self, seed=None, params=None, n_synth=1, custom_prompts=None, auto_review=True, debug=True):
+    if params is None:
+        params = self.auto_suggest_parameters(debug=debug)
+        if debug:
+            print(f"{self.bold_txt('Auto-suggested parameters')}: {params}")
+
+    if custom_prompts is None:
+        # Use default prompts
+        custom_prompts = {
+            "distill_filter": self.show_prompt("distill_filter"),
+            "synthesize": self.show_prompt("synthesize"),
+        }
+    else:
+        # Validate that prompts are formatted correctly
+        for step_name, prompt in custom_prompts.items():
+            if prompt is not None:
+                self.validate_prompt(step_name, prompt)
+
+    # Run cost estimation
+    self.estimate_gen_cost(params)
+
+    # Confirm to proceed
+    if debug:
+        print(f"\n\n{self.bold_highlight_txt('Action required')}")
+        user_input = input("Proceed with generation? (y/n): ")
+        if user_input.lower() != "y":
+            print("Cancelled generation")
+            return
+
+    # Run concept generation
+    filter_n_quotes = params["filter_n_quotes"]
+    if (filter_n_quotes > 1) and (custom_prompts["distill_filter"] is not None):
+        step_name = "Distill-filter"
+        self.print_step_name(step_name)
+        with self.spinner_wrapper() as spinner:
+            df_filtered = await distill_filter(
+                text_df=self.in_df,
+                doc_col=self.doc_col,
+                doc_id_col=self.doc_id_col,
+                model=self.distill_model,
+                n_quotes=params["filter_n_quotes"],
+                prompt_template=custom_prompts["distill_filter"],
+                seed=seed,
+                sess=self,
+            )
+            self.df_to_score = df_filtered  # Change to use filtered df for concept scoring
+            self.df_filtered = df_filtered
+            spinner.text = "Done"
+            spinner.ok("✅")
+        if debug:
+            display(df_filtered)
+    else:
+        self.df_filtered = self.in_df[[self.doc_id_col, self.doc_col]]
+
+    # ✅ Check if "Keywords" exist in the input DataFrame
+    if "Keywords" in self.in_df.columns:
+        print("✅ Using existing 'Keywords' for clustering, skipping summarization.")
+        self.df_bullets = self.in_df[["id", "Keywords"]].rename(columns={"Keywords": self.doc_col})
+    else:
+        print("⚠️ 'Keywords' column not found, falling back to summarization.")
+        # Run summarization (only if keywords don't exist)
+        if custom_prompts.get("distill_summarize") is not None:
+            step_name = "Distill-summarize"
+            self.print_step_name(step_name)
+            with self.spinner_wrapper() as spinner:
+                df_bullets = await distill_summarize(
+                    text_df=self.df_filtered,
+                    doc_col=self.doc_col,
+                    doc_id_col=self.doc_id_col,
+                    model=self.distill_model,
+                    n_bullets=params["summ_n_bullets"],
+                    prompt_template=custom_prompts["distill_summarize"],
+                    seed=seed,
+                    sess=self,
+                )
+                self.df_bullets = df_bullets
+                spinner.text = "Done"
+                spinner.ok("✅")
+            if debug:
+                display(df_bullets)
+        else:
+            self.df_bullets = self.df_filtered  # Use filtered df directly if no summarization
+
+    # ✅ Now df_bullets (either "Keywords" or summarization) is used for clustering
+    df_cluster_in = self.df_bullets
+    synth_doc_col = self.doc_col
+    synth_n_concepts = params["synth_n_concepts"]
+    concept_col_prefix = "concept"
+
+    # Perform synthesize step n_synth times
+    for i in range(n_synth):
+        self.concepts = {}
+
+        step_name = "Cluster"
+        self.print_step_name(step_name)
+        with self.spinner_wrapper() as spinner:
+            df_cluster, _ = adaptive_cluster_helper(
+                in_df=df_cluster_in, 
+                doc_col=synth_doc_col,
+                doc_id_col=self.doc_id_col,
+                cluster_id_col="cluster_id",
+                embed_model=self.cluster_model
+            )
+
+            spinner.text = "Done"
+            spinner.ok("✅")
+        if debug:
+            display(df_cluster)
+
+        step_name = "Synthesize"
+        self.print_step_name(step_name)
+        with self.spinner_wrapper() as spinner:
+            df_concepts, synth_logs = await synthesize(
+                cluster_df=df_cluster,
+                doc_col=synth_doc_col,
+                doc_id_col=self.doc_id_col,
+                model=self.synth_model,
+                concept_col_prefix=concept_col_prefix,
+                n_concepts=synth_n_concepts,
+                pattern_phrase="unique topic",
+                prompt_template=custom_prompts["synthesize"],
+                seed=seed,
+                sess=self,
+                return_logs=True,
+            )
+            spinner.text = "Done"
+            spinner.ok("✅")
+        if debug:
+            print(synth_logs)
+
+        # Review current concepts (remove low-quality, merge similar)
+        if auto_review:
+            step_name = "Review"
+            self.print_step_name(step_name)
+            with self.spinner_wrapper() as spinner:
+                _, df_concepts, review_logs = await review(
+                    concepts=self.concepts,
+                    concept_df=df_concepts,
+                    concept_col_prefix=concept_col_prefix,
+                    model=self.synth_model,
+                    seed=seed,
+                    sess=self,
+                    return_logs=True,
+                )
+                spinner.text = "Done"
+                spinner.ok("✅")
+            if debug:
+                print(review_logs)
+
+        self.concept_history[i] = self.concepts
+        if debug:
+            # Print results
+            print(
+                f"\n\n{self.highlight_txt('Synthesize', color='blue')} {i + 1}: (n={len(self.concepts)} concepts)")
+            for k, c in self.concepts.items():
+                print(f'- Concept {k}:\n\t{c.name}\n\t- Prompt: {c.prompt}')
+
+        # Update synthesize params for next iteration
+        df_concepts["synth_doc_col"] = df_concepts[f"{concept_col_prefix}_name"] + ": " + df_concepts[
+            f"{concept_col_prefix}_prompt"]
+        df_cluster_in = df_concepts
+        synth_doc_col = "synth_doc_col"
+        synth_n_concepts = math.floor(synth_n_concepts * 0.75)
+
+    print("✅ Done with concept generation!")
 
     def __concepts_to_json(self):
         concept_dict = {c_id: c.to_dict() for c_id, c in self.concepts.items()}
