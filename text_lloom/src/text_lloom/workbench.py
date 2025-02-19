@@ -10,6 +10,7 @@ import os
 from yaspin import yaspin
 import base64
 import requests
+import pickle
 
 import nltk
 nltk.download('punkt_tab', quiet=True)
@@ -397,6 +398,7 @@ class lloom:
             params = self.auto_suggest_parameters(debug=debug)
             if debug:
                 print(f"{self.bold_txt('Auto-suggested parameters')}: {params}")
+
         if custom_prompts is None:
             # Use default prompts
             custom_prompts = {
@@ -409,10 +411,10 @@ class lloom:
             for step_name, prompt in custom_prompts.items():
                 if prompt is not None:
                     self.validate_prompt(step_name, prompt)
-        
+
         # Run cost estimation
         self.estimate_gen_cost(params)
-        
+
         # Confirm to proceed
         if debug:
             print(f"\n\n{self.bold_highlight_txt('Action required')}")
@@ -428,7 +430,7 @@ class lloom:
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
                 df_filtered = await distill_filter(
-                    text_df=self.in_df, 
+                    text_df=self.in_df,
                     doc_col=self.doc_col,
                     doc_id_col=self.doc_id_col,
                     model=self.distill_model,
@@ -446,34 +448,51 @@ class lloom:
         else:
             # Just use original df to generate bullets
             self.df_filtered = self.in_df[[self.doc_id_col, self.doc_col]]
-        
-        if (custom_prompts["distill_summarize"] is not None):
-            step_name = "Distill-summarize"
-            self.print_step_name(step_name)
-            with self.spinner_wrapper() as spinner:
-                df_bullets = await distill_summarize(
-                    text_df=self.df_filtered, 
-                    doc_col=self.doc_col,
-                    doc_id_col=self.doc_id_col,
-                    model=self.distill_model,
-                    n_bullets=params["summ_n_bullets"],
-                    prompt_template=custom_prompts["distill_summarize"],
-                    seed=seed,
-                    sess=self,
-                )
-                self.df_bullets = df_bullets
-                spinner.text = "Done"
-                spinner.ok("✅")
-            if debug:
-                display(df_bullets)
+
+        # Define a save path for summarized data
+        save_path = "./saved_summaries.pkl"
+
+        # Check if summarized results exist
+        if os.path.exists(save_path):
+            print("✅ Using previously saved summarized results...")
+            with open(save_path, "rb") as f:
+                self.df_bullets = pickle.load(f)
         else:
-            # Just use filtered df to generate concepts
-            self.df_bullets = self.df_filtered
-        
-        df_cluster_in = df_bullets
+            # Run summarization if not found
+            if custom_prompts["distill_summarize"] is not None:
+                step_name = "Distill-summarize"
+                self.print_step_name(step_name)
+                with self.spinner_wrapper() as spinner:
+                    df_bullets = await distill_summarize(
+                        text_df=self.df_filtered,
+                        doc_col=self.doc_col,
+                        doc_id_col=self.doc_id_col,
+                        model=self.distill_model,
+                        n_bullets=params["summ_n_bullets"],
+                        prompt_template=custom_prompts["distill_summarize"],
+                        seed=seed,
+                        sess=self,
+                    )
+                    self.df_bullets = df_bullets
+
+                    # Save summarized results for future runs
+                    with open(save_path, "wb") as f:
+                        pickle.dump(df_bullets, f)
+
+                    spinner.text = "Done"
+                    spinner.ok("✅")
+
+                if debug:
+                    display(df_bullets)
+            else:
+                self.df_bullets = self.df_filtered  # Use filtered df directly if no summarization
+
+        # ✅ Now df_bullets is reused for clustering
+        df_cluster_in = self.df_bullets
         synth_doc_col = self.doc_col
         synth_n_concepts = params["synth_n_concepts"]
         concept_col_prefix = "concept"
+
         # Perform synthesize step n_synth times
         for i in range(n_synth):
             self.concepts = {}
@@ -482,7 +501,7 @@ class lloom:
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
                 df_cluster = await cluster(
-                    text_df=df_cluster_in, 
+                    text_df=df_cluster_in,
                     doc_col=synth_doc_col,
                     doc_id_col=self.doc_id_col,
                     embed_model=self.cluster_model,
@@ -492,12 +511,12 @@ class lloom:
                 spinner.ok("✅")
             if debug:
                 display(df_cluster)
-            
+
             step_name = "Synthesize"
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
                 df_concepts, synth_logs = await synthesize(
-                    cluster_df=df_cluster, 
+                    cluster_df=df_cluster,
                     doc_col=synth_doc_col,
                     doc_id_col=self.doc_id_col,
                     model=self.synth_model,
@@ -514,34 +533,36 @@ class lloom:
             if debug:
                 print(synth_logs)
 
-                # Review current concepts (remove low-quality, merge similar)
-                if auto_review:
-                    step_name = "Review"
-                    self.print_step_name(step_name)
-                    with self.spinner_wrapper() as spinner:
-                        _, df_concepts, review_logs = await review(
-                            concepts=self.concepts, 
-                            concept_df=df_concepts, 
-                            concept_col_prefix=concept_col_prefix, 
-                            model=self.synth_model, 
-                            seed=seed,
-                            sess=self,
-                            return_logs=True,
-                        )
-                        spinner.text = "Done"
-                        spinner.ok("✅")
-                    if debug:
-                        print(review_logs)
-
-                self.concept_history[i] = self.concepts
+            # Review current concepts (remove low-quality, merge similar)
+            if auto_review:
+                step_name = "Review"
+                self.print_step_name(step_name)
+                with self.spinner_wrapper() as spinner:
+                    _, df_concepts, review_logs = await review(
+                        concepts=self.concepts,
+                        concept_df=df_concepts,
+                        concept_col_prefix=concept_col_prefix,
+                        model=self.synth_model,
+                        seed=seed,
+                        sess=self,
+                        return_logs=True,
+                    )
+                    spinner.text = "Done"
+                    spinner.ok("✅")
                 if debug:
-                    # Print results
-                    print(f"\n\n{self.highlight_txt('Synthesize', color='blue')} {i + 1}: (n={len(self.concepts)} concepts)")
-                    for k, c in self.concepts.items():
-                        print(f'- Concept {k}:\n\t{c.name}\n\t- Prompt: {c.prompt}')
-            
+                    print(review_logs)
+
+            self.concept_history[i] = self.concepts
+            if debug:
+                # Print results
+                print(
+                    f"\n\n{self.highlight_txt('Synthesize', color='blue')} {i + 1}: (n={len(self.concepts)} concepts)")
+                for k, c in self.concepts.items():
+                    print(f'- Concept {k}:\n\t{c.name}\n\t- Prompt: {c.prompt}')
+
             # Update synthesize params for next iteration
-            df_concepts["synth_doc_col"] = df_concepts[f"{concept_col_prefix}_name"] + ": " + df_concepts[f"{concept_col_prefix}_prompt"]
+            df_concepts["synth_doc_col"] = df_concepts[f"{concept_col_prefix}_name"] + ": " + df_concepts[
+                f"{concept_col_prefix}_prompt"]
             df_cluster_in = df_concepts
             synth_doc_col = "synth_doc_col"
             synth_n_concepts = math.floor(synth_n_concepts * 0.75)
