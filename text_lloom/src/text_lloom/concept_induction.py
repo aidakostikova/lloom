@@ -286,7 +286,7 @@ def adaptive_cluster_helper(
         umap_model = umap.UMAP(
             n_neighbors=25,
             n_components=n_components,
-            min_dist=0.3,
+            min_dist=0.5,
             metric='cosine'
         )
         umap_embeddings = umap_model.fit_transform(embeddings)
