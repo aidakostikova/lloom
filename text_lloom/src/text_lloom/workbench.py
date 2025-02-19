@@ -396,7 +396,7 @@ class lloom:
     
     #### original async def gen ####
     
-    """
+
     async def gen(self, seed=None, params=None, n_synth=1, custom_prompts=None, auto_review=True, debug=True):
         if params is None:
             params = self.auto_suggest_parameters(debug=debug)
@@ -579,8 +579,8 @@ class lloom:
             synth_doc_col = "synth_doc_col"
             synth_n_concepts = math.floor(synth_n_concepts * 0.75)
         print("✅ Done with concept generation!")
-        """
-    
+
+    """
     #### New async def gen (if "Keyphrases" field exists in JSON, distill_summarize is skipped ####
 
     async def gen(self, seed=None, params=None, n_synth=1, custom_prompts=None, auto_review=True, debug=True):
@@ -777,6 +777,7 @@ class lloom:
             synth_n_concepts = max(1, math.floor(synth_n_concepts * 0.75))
         
         print("✅ Done with concept generation!")
+    """
     
 
     def __concepts_to_json(self):
