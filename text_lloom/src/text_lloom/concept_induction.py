@@ -227,17 +227,17 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
 
     embeddings, tokens = get_embeddings(embed_model, text_vals)
     umap_model = umap.UMAP(
-    n_neighbors=5,        # Lower = more separation between points
-    n_components=15,      # Higher = preserves more structure
-    min_dist=0.3,         # Helps keep clusters apart
+    n_neighbors=25,        # Lower = more separation between points
+    n_components=5,      # Higher = preserves more structure
+    min_dist=0.0,         # Helps keep clusters apart
     metric='cosine'
     )
     umap_embeddings = umap_model.fit_transform(embeddings)
     hdb = HDBSCAN(
-    min_cluster_size=5,   # Smaller clusters allowed
-    min_samples=1,        # Less aggressive outlier removal
+    min_cluster_size=28,   # Smaller clusters allowed
+    min_samples=5,        # Less aggressive outlier removal
     metric='euclidean',   # Works better with UMAP output
-    cluster_selection_method='leaf'  # More fine-grained clusters
+    cluster_selection_method='eom'  # More fine-grained clusters
     )
     res = hdb.fit(umap_embeddings)
     clusters = res.labels_
