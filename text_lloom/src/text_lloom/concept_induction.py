@@ -256,11 +256,11 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
 def adaptive_cluster_helper(
     in_df, doc_col, doc_id_col, cluster_id_col, embed_model,
     min_cluster_size_range=(26, 28),  # Range of min cluster sizes to try
-    min_samples_range=(5),        # Range of min_samples to try
-    umap_n_components_range=(5),   # Range of UMAP components to try
-    max_attempts=25,                  # Max iterations to find good clustering
+    min_samples_range=(5, 6),        # Range of min_samples to try
+    umap_n_components_range=(5, 6),   # Range of UMAP components to try
+    max_attempts=30,                  # Max iterations to find good clustering
     outlier_threshold=0.2,            # Max % of outliers allowed
-    target_cluster_range=(7, 15)      # Desired cluster range
+    target_cluster_range=(6, 15)      # Desired cluster range
 ):
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
