@@ -644,10 +644,23 @@ class lloom:
         
             # Convert list of keyphrases into a single string for clustering
             self.df_bullets = self.in_df[["title", "Keyphrases"]].copy()
-            self.df_bullets[self.doc_col] = self.df_bullets["Keyphrases"].apply(lambda x: "; ".join(x) if isinstance(x, list) else str(x))
+            
+            # Ensure valid keyphrases before joining
+            def safe_join_keyphrases(x):
+                if isinstance(x, list):
+                    return "; ".join([str(kw).strip() for kw in x if isinstance(kw, str) and kw.strip() != ""])
+                return str(x).strip() if x and isinstance(x, str) else ""
+        
+            self.df_bullets[self.doc_col] = self.df_bullets["Keyphrases"].apply(safe_join_keyphrases)
             self.df_bullets = self.df_bullets.drop(columns=["Keyphrases"])  # Drop original list column
+        
+            # 🔹 Remove empty or invalid rows before clustering
+            self.df_bullets = self.df_bullets[self.df_bullets[self.doc_col] != ""]
+            
+            print(f"🔍 Prepared {len(self.df_bullets)} valid keyphrase entries for clustering.")
         else:
             print("⚠️ 'Keyphrases' column not found, falling back to summarization.")
+
             
             # Run summarization (only if Keyphrases don't exist)
             if custom_prompts.get("distill_summarize") is not None:
