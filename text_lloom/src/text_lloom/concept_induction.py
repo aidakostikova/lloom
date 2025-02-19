@@ -255,9 +255,9 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
 
 def adaptive_cluster_helper(
     in_df, doc_col, doc_id_col, cluster_id_col, embed_model,
-    min_cluster_size_range=(10, 50),  # Range of min cluster sizes to try
+    min_cluster_size_range=(3, 10),  # Range of min cluster sizes to try
     min_samples_range=(3, 10),        # Range of min_samples to try
-    umap_n_components_range=(3, 20),   # Range of UMAP components to try
+    umap_n_components_range=(15, 20),   # Range of UMAP components to try
     max_attempts=25,                  # Max iterations to find good clustering
     outlier_threshold=0.2,            # Max % of outliers allowed
     target_cluster_range=(7, 15)      # Desired cluster range
@@ -286,7 +286,7 @@ def adaptive_cluster_helper(
         umap_model = umap.UMAP(
             n_neighbors=25,
             n_components=n_components,
-            min_dist=0.1,
+            min_dist=0.5,
             metric='cosine'
         )
         umap_embeddings = umap_model.fit_transform(embeddings)
