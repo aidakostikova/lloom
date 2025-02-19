@@ -76,23 +76,24 @@ review_merge_prompt = """
 I have this set of themes generated from text examples:
 {concepts}
 
-Please identify any PAIRS of themes that are similar or overlapping that should be MERGED together. 
-Please respond ONLY with a valid JSON in the following format with the original themes and a new name and prompt for the merged theme. Do NOT simply combine the prior theme names or prompts, but come up with a new 2-3 word name and 1-sentence ChatGPT prompt. If there no similar themes, please leave the list empty.
+Please analyze them and determine whether any PAIRS of themes are **so similar or overlapping** that they should be MERGED together. 
+
+⚠️ Only merge if the differences between them are **insignificant or redundant**.  
+⚠️ If themes are **related but distinct**, do NOT merge them.  
+
+Please respond ONLY with a valid JSON in the following format:
 
 {{
     "merge": [ 
         {{
             "original_themes": ["<THEME_NAME_A>", "<THEME_NAME_B>"],
             "merged_theme_name": "<THEME_NAME_AB>",
-            "merged_theme_prompt": "<THEME_PROMPT_AB>",
-        }},
-        {{
-            "original_themes": ["<THEME_NAME_C>", "<THEME_NAME_D>"],
-            "merged_theme_name": "<THEME_NAME_CD>",
-            "merged_theme_prompt": "<THEME_PROMPT_CD>",
+            "merged_theme_prompt": "<THEME_PROMPT_AB>"
         }}
     ]
 }}
+
+⚠️ Ensure that `"merge"` is ALWAYS included in the JSON response, even if it's an empty list.
 """
 
 review_select_prompt = """
