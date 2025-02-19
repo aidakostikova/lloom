@@ -500,13 +500,21 @@ class lloom:
             step_name = "Cluster"
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
-                df_cluster = await cluster(
-                    text_df=df_cluster_in,
-                    doc_col=synth_doc_col,
-                    doc_id_col=self.doc_id_col,
-                    embed_model=self.cluster_model,
-                    sess=self,
+                #df_cluster = await cluster(
+                #    text_df=df_cluster_in,
+                #    doc_col=synth_doc_col,
+                #    doc_id_col=self.doc_id_col,
+                #    embed_model=self.cluster_model,
+                #    sess=self,
+                #)
+                df_cluster, _ = adaptive_cluster_helper(
+                in_df=df_cluster_in, 
+                doc_col=synth_doc_col,
+                doc_id_col=self.doc_id_col,
+                cluster_id_col="cluster_id",
+                embed_model=self.cluster_model
                 )
+
                 spinner.text = "Done"
                 spinner.ok("✅")
             if debug:
