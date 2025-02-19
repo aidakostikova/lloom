@@ -581,7 +581,7 @@ class lloom:
         print("✅ Done with concept generation!")
         """
     
-    #### New async def gen (if "Keywords" field exists in JSON, distill_summarize is skipped ####
+    #### New async def gen (if "Keyphrases" field exists in JSON, distill_summarize is skipped ####
     
     async def gen(self, seed=None, params=None, n_synth=1, custom_prompts=None, auto_review=True, debug=True):
         if params is None:
@@ -637,13 +637,13 @@ class lloom:
         else:
             self.df_filtered = self.in_df[[self.doc_id_col, self.doc_col]]
     
-        # ✅ Check if "Keywords" exist in the input DataFrame
-        if "Keywords" in self.in_df.columns:
-            print("✅ Using existing 'Keywords' for clustering, skipping summarization.")
-            self.df_bullets = self.in_df[["id", "Keywords"]].rename(columns={"Keywords": self.doc_col})
+        # ✅ Check if "Keyphrases" exist in the input DataFrame
+        if "Keyphrases" in self.in_df.columns:
+            print("✅ Using existing 'Keyphrases' for clustering, skipping summarization.")
+            self.df_bullets = self.in_df[["id", "Keyphrases"]].rename(columns={"Keyphrases": self.doc_col})
         else:
-            print("⚠️ 'Keywords' column not found, falling back to summarization.")
-            # Run summarization (only if keywords don't exist)
+            print("⚠️ 'Keyphrases' column not found, falling back to summarization.")
+            # Run summarization (only if Keyphrases don't exist)
             if custom_prompts.get("distill_summarize") is not None:
                 step_name = "Distill-summarize"
                 self.print_step_name(step_name)
@@ -666,7 +666,7 @@ class lloom:
             else:
                 self.df_bullets = self.df_filtered  # Use filtered df directly if no summarization
     
-        # ✅ Now df_bullets (either "Keywords" or summarization) is used for clustering
+        # ✅ Now df_bullets (either "Keyphrases" or summarization) is used for clustering
         df_cluster_in = self.df_bullets
         synth_doc_col = self.doc_col
         synth_n_concepts = params["synth_n_concepts"]
