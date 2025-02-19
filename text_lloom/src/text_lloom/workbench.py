@@ -450,7 +450,7 @@ class lloom:
             self.df_filtered = self.in_df[[self.doc_id_col, self.doc_col]]
 
         # Define a save path for summarized data
-        save_path = "./saved_summaries.pkl"
+        save_path = "/content/saved_summaries.pkl"
 
         # Check if summarized results exist
         if os.path.exists(save_path):
