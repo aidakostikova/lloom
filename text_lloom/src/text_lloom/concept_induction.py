@@ -21,6 +21,7 @@ import re
 # Clustering
 from hdbscan import HDBSCAN
 import umap
+import random
 
 # Local imports
 if __package__ is None or __package__ == '':
