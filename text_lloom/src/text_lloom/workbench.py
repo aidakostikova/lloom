@@ -637,59 +637,63 @@ class lloom:
         else:
             self.df_filtered = self.in_df[[self.doc_id_col, self.doc_col]]
     
-        # ✅ **Check if 'saved_summaries.pkl' exists**
-        save_path = "saved_summaries.pkl"
-    
-        if os.path.exists(save_path):
-            print("✅ Using previously saved summarized results...")
-            with open(save_path, "rb") as f:
-                self.df_bullets = pickle.load(f)
+        # ✅ Check if "Keyphrases" exist in the input DataFrame
+
+        if "Keyphrases" in self.in_df.columns:
+            print("✅ Using existing 'Keyphrases' for clustering, skipping summarization.")
+        
+            # Convert list of keyphrases into a single string for clustering
+            self.df_bullets = self.in_df[["title", "Keyphrases"]].copy()
+            
+            # Ensure valid keyphrases before joining
+            def safe_join_keyphrases(x):
+                if isinstance(x, list):
+                    return "; ".join([str(kw).strip() for kw in x if isinstance(kw, str) and kw.strip() != ""])
+                return str(x).strip() if x and isinstance(x, str) else ""
+        
+            self.df_bullets[self.doc_col] = self.df_bullets["Keyphrases"].apply(safe_join_keyphrases)
+            self.df_bullets = self.df_bullets.drop(columns=["Keyphrases"])  # Drop original list column
+        
+            # 🔹 Remove empty or invalid rows before clustering
+            self.df_bullets = self.df_bullets[self.df_bullets[self.doc_col] != ""]
+            
+            print(f"🔍 Prepared {len(self.df_bullets)} valid keyphrase entries for clustering.")
         else:
-            # ✅ If NO saved summaries, use **'Evidence_Llama-3.1-70b'**
-            if "Evidence_Llama-3.1-70b" in self.in_df.columns:
-                print("⚠️ No saved summaries found. Using 'Evidence_Llama-3.1-70b' directly for clustering.")
-                self.df_bullets = self.in_df[["title", "Evidence_Llama-3.1-70b"]].rename(columns={"Evidence_Llama-3.1-70b": self.doc_col})
+            print("⚠️ 'Keyphrases' column not found, falling back to summarization.")
+
+            
+            # Run summarization (only if Keyphrases don't exist)
+            if custom_prompts.get("distill_summarize") is not None:
+                step_name = "Distill-summarize"
+                self.print_step_name(step_name)
+                with self.spinner_wrapper() as spinner:
+                    df_bullets = await distill_summarize(
+                        text_df=self.df_filtered,
+                        doc_col=self.doc_col,
+                        doc_id_col=self.doc_id_col,
+                        model=self.distill_model,
+                        n_bullets=params["summ_n_bullets"],
+                        prompt_template=custom_prompts["distill_summarize"],
+                        seed=seed,
+                        sess=self,
+                    )
+                    self.df_bullets = df_bullets
+                    spinner.text = "Done"
+                    spinner.ok("✅")
+                if debug:
+                    display(df_bullets)
             else:
-                print("⚠️ 'Evidence_Llama-3.1-70b' column not found, falling back to summarization.")
+                self.df_bullets = self.df_filtered  # Use filtered df directly if no summarization
     
-                # Run summarization (only if Keyphrases or Evidence aren't available)
-                if custom_prompts.get("distill_summarize") is not None:
-                    step_name = "Distill-summarize"
-                    self.print_step_name(step_name)
-                    with self.spinner_wrapper() as spinner:
-                        df_bullets = await distill_summarize(
-                            text_df=self.df_filtered,
-                            doc_col=self.doc_col,
-                            doc_id_col=self.doc_id_col,
-                            model=self.distill_model,
-                            n_bullets=params["summ_n_bullets"],
-                            prompt_template=custom_prompts["distill_summarize"],
-                            seed=seed,
-                            sess=self,
-                        )
-                        self.df_bullets = df_bullets
-    
-                        # Save summarized results for future runs
-                        with open(save_path, "wb") as f:
-                            pickle.dump(df_bullets, f)
-    
-                        spinner.text = "Done"
-                        spinner.ok("✅")
-    
-                    if debug:
-                        display(df_bullets)
-                else:
-                    self.df_bullets = self.df_filtered  # Use filtered df directly if no summarization
-    
-        # ✅ Now df_bullets (either "Keyphrases", "Evidence", or summarization) is used for clustering
-        df_cluster_in = self.df_bullets
+        # ✅ Now df_bullets (either "Keyphrases" or summarization) is used for clustering
+        df_cluster_in = self.df_bullets  # Initial input for clustering
         synth_doc_col = self.doc_col
         synth_n_concepts = params["synth_n_concepts"]
         concept_col_prefix = "concept"
-    
+        
         for i in range(n_synth):
             self.concepts = {}
-    
+        
             step_name = "Cluster"
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
@@ -714,12 +718,12 @@ class lloom:
                         cluster_id_col="cluster_id",
                         embed_model=self.cluster_model
                     )
-    
+        
                 spinner.text = "Done"
                 spinner.ok("✅")
             if debug:
                 display(df_cluster)
-    
+        
             step_name = "Synthesize"
             self.print_step_name(step_name)
             with self.spinner_wrapper() as spinner:
@@ -740,7 +744,7 @@ class lloom:
                 spinner.ok("✅")
             if debug:
                 print(synth_logs)
-    
+        
             # Review current concepts (remove low-quality, merge similar)
             if auto_review:
                 step_name = "Review"
@@ -759,22 +763,20 @@ class lloom:
                     spinner.ok("✅")
                 if debug:
                     print(review_logs)
-    
+        
             self.concept_history[i] = self.concepts
             if debug:
                 print(f"\n\n{self.highlight_txt('Synthesize', color='blue')} {i + 1}: (n={len(self.concepts)} concepts)")
                 for k, c in self.concepts.items():
                     print(f'- Concept {k}:\n\t{c.name}\n\t- Prompt: {c.prompt}')
-    
+        
             # ✅ Reduce the number of generated concepts in later iterations
             df_concepts["synth_doc_col"] = df_concepts[f"{concept_col_prefix}_name"] + ": " + df_concepts[f"{concept_col_prefix}_prompt"]
             df_cluster_in = df_concepts  # ✅ Feed synthesized concepts for next iteration
             synth_doc_col = "synth_doc_col"
             synth_n_concepts = max(1, math.floor(synth_n_concepts * 0.75))
-    
+        
         print("✅ Done with concept generation!")
-
-
     
 
     def __concepts_to_json(self):
