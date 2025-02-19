@@ -229,12 +229,12 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
     umap_model = umap.UMAP(
     n_neighbors=25,        # Lower = more separation between points
     n_components=5,      # Higher = preserves more structure
-    min_dist=0.0,         # Helps keep clusters apart
+    min_dist=0.1,         # Helps keep clusters apart
     metric='cosine'
     )
     umap_embeddings = umap_model.fit_transform(embeddings)
     hdb = HDBSCAN(
-    min_cluster_size=28,   # Smaller clusters allowed
+    min_cluster_size=50,   # Smaller clusters allowed
     min_samples=5,        # Less aggressive outlier removal
     metric='euclidean',   # Works better with UMAP output
     cluster_selection_method='eom'  # More fine-grained clusters
