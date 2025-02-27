@@ -229,9 +229,9 @@ import numpy as np
 import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-embedding_file = "/content/embeddings_EvidenceACL.pkl"
+embedding_file = "/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl"
 
-def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model, embedding_file="/content/embeddings_EvidenceACL.pkl"):
+def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model, embedding_file="/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl"):
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
 
@@ -299,7 +299,7 @@ import itertools
 import random
 
 def adaptive_cluster_helper(
-    in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="/content/embeddings_EvidenceACL.pkl",
+    in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl",
     umap_params={"n_neighbors": [25, 30, 50], "n_components": [5, 10], "min_dist": [0.0, 0.1]},
     hdbscan_params={"min_cluster_size": [25, 28], "min_samples": [5, 10]},
     bertopic_params={"min_topic_size": [10, 12, 15]},
