@@ -288,7 +288,7 @@ def adaptive_cluster_helper(
     hdbscan_params={"min_cluster_size": [10, 15, 20, 25], "min_samples": [2, 5, 10]},
     bertopic_params={"min_topic_size": [5, 8, 10]},
     max_attempts=20,  # Number of iterations to find good clustering
-    outlier_threshold=0.2,
+    outlier_threshold=0.35,
     target_cluster_range=(7, 8)
 ):
     id_vals = in_df[doc_id_col].tolist()
