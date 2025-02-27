@@ -231,7 +231,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 embedding_file = "/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl"
 
-def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model, embedding_file="/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl"):
+def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model, embedding_file="embeddings.pkl"):
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
 
@@ -243,23 +243,6 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
         embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
         with open(embedding_file, "wb") as f:
             pickle.dump(embeddings, f)
-    
-    # 🔍 Debug embedding length
-    print(f"🔍 Expected {len(text_vals)} embeddings, got {len(embeddings)}")
-    
-    # ⚠️ If mismatch, regenerate embeddings
-    if len(embeddings) != len(text_vals):
-        print("⚠️ Mismatch in embeddings! Regenerating...")
-        embeddings, tokens = get_embeddings(embed_model, text_vals)
-        with open(embedding_file, "wb") as f:
-            pickle.dump(embeddings, f)
-    
-    # Ensure embeddings are a valid NumPy array
-    embeddings = np.array(embeddings)
-    print(f"✅ Embeddings shape: {embeddings.shape}")
-    
-    # Fit BERTopic with corrected embeddings
-    topics, probs = topic_model.fit_transform(text_vals, embeddings)
 
     # Configure UMAP and HDBSCAN for BERTopic
     umap_model = umap.UMAP(n_neighbors=25, n_components=5, min_dist=0.0, metric='cosine')
@@ -295,16 +278,17 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
     return cluster_df, tokens
 
 
+
 import itertools
 import random
 
 def adaptive_cluster_helper(
-    in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl",
+    in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="embeddings.pkl",
     umap_params={"n_neighbors": [25, 30, 50], "n_components": [5, 10], "min_dist": [0.0, 0.1]},
     hdbscan_params={"min_cluster_size": [25, 28], "min_samples": [5, 10]},
     bertopic_params={"min_topic_size": [10, 12, 15]},
     max_attempts=20,  # Number of iterations to find good clustering
-    outlier_threshold=0.27,
+    outlier_threshold=0.2,
     target_cluster_range=(7, 8)
 ):
     id_vals = in_df[doc_id_col].tolist()
@@ -314,44 +298,10 @@ def adaptive_cluster_helper(
     if os.path.exists(embedding_file):
         with open(embedding_file, "rb") as f:
             embeddings = pickle.load(f)
-        print(f"✅ Loaded cached embeddings: {len(embeddings)}")
     else:
-        print("🛠 No cached embeddings found. Generating new ones...")
-        embeddings, tokens = get_embeddings(embed_model, text_vals)
+        embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
         with open(embedding_file, "wb") as f:
             pickle.dump(embeddings, f)
-    
-    # 🔍 Debug: Check text values
-    print(f"🔍 Checking text values: Found {len(text_vals)} documents")
-    empty_texts = [t for t in text_vals if not t.strip()]
-    if empty_texts:
-        print(f"⚠️ Warning: {len(empty_texts)} empty texts found! They might not generate embeddings.")
-    
-    # 🔍 Debug: Check embedding count
-    print(f"🔍 Expected {len(text_vals)} embeddings, got {len(embeddings)}")
-    
-    # 🔄 Force Regeneration if Mismatch
-    if len(embeddings) != len(text_vals):
-        print("⚠️ Mismatch detected! Regenerating embeddings...")
-        
-        # Delete the cache file (force fresh computation)
-        if os.path.exists(embedding_file):
-            os.remove(embedding_file)
-        
-        embeddings, tokens = get_embeddings(embed_model, text_vals)
-        
-        # Ensure embeddings are valid before caching
-        if len(embeddings) == len(text_vals):
-            print("✅ Embeddings successfully regenerated and match text count!")
-            with open(embedding_file, "wb") as f:
-                pickle.dump(embeddings, f)
-        else:
-            print(f"❌ Error: Regeneration failed again! Got {len(embeddings)} embeddings for {len(text_vals)} texts.")
-            raise ValueError("Failed to regenerate embeddings correctly.")
-    
-    # Convert embeddings to a proper NumPy array
-    embeddings = np.array(embeddings)
-    print(f"✅ Final embeddings shape: {embeddings.shape}")
 
     # Grid search over clustering parameters
     param_combinations = list(itertools.product(
@@ -362,22 +312,22 @@ def adaptive_cluster_helper(
         hdbscan_params["min_samples"],
         bertopic_params["min_topic_size"]
     ))
-    
+
     best_cluster_df = None
     best_num_clusters = 0
     best_outlier_ratio = 1.0
-    
+
     for attempt, params in enumerate(random.sample(param_combinations, max_attempts)):
         print(f"\n🔄 Attempt {attempt+1}/{max_attempts} with params: {params}")
-    
+
         # Unpack params
         n_neighbors, n_components, min_dist, min_cluster_size, min_samples, min_topic_size = params
-    
+
         # Configure models
         umap_model = umap.UMAP(n_neighbors=n_neighbors, n_components=n_components, min_dist=min_dist, metric='cosine')
         hdbscan_model = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric='euclidean', prediction_data=True)
         vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
-    
+
         # Initialize BERTopic
         topic_model = BERTopic(
             umap_model=umap_model,
@@ -387,18 +337,9 @@ def adaptive_cluster_helper(
             nr_topics=8,
             calculate_probabilities=True
         )
-    
-        # Fit BERTopic
-        try:
-            topics, probs = topic_model.fit_transform(text_vals, embeddings)
-        except Exception as e:
-            print(f"❌ BERTopic failed: {e}")
-            continue  # Skip to the next attempt
-    
-    # 🔍 Ensure topic_model was successfully initialized
-    if topic_model is None:
-        raise ValueError("❌ Error: BERTopic model was never initialized! Check parameter tuning loop.")
 
+        # Fit BERTopic
+        topics, probs = topic_model.fit_transform(text_vals, embeddings)
 
         # Handle outliers with soft clustering
         final_topics = [
@@ -425,6 +366,7 @@ def adaptive_cluster_helper(
 
     print("⚠ No perfect clustering found, returning best attempt.")
     return best_cluster_df, tokens
+
 
 
 # Input: text_df (columns: doc_id, doc) 
