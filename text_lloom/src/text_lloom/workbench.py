@@ -456,6 +456,8 @@ class lloom:
         # Define a save path for summarized data
         save_path = "/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/saved_summaries.pkl"
 
+        #### SKIPPING SUMMARIZATION ####
+        """
         # Check if summarized results exist
         if os.path.exists(save_path):
             print("✅ Using previously saved summarized results...")
@@ -496,7 +498,19 @@ class lloom:
         synth_doc_col = self.doc_col
         synth_n_concepts = params["synth_n_concepts"]
         concept_col_prefix = "concept"
+        """
+        
+        #### START: SKIPPING SUMMARIZATION #### 
+        print("⚡ Skipping summarization, using raw documents for clustering.")
+        self.df_bullets = self.df_filtered  # Directly use the raw text without summarization
+        df_cluster_in = self.df_filtered  # Use raw documents for clustering
 
+        synth_doc_col = self.doc_col
+        synth_n_concepts = params["synth_n_concepts"]
+        concept_col_prefix = "concept"
+        
+        #### END: SKIPPING SUMMARIZATION ####
+        
         # Perform synthesize step n_synth times
         for i in range(n_synth):
             self.concepts = {}
