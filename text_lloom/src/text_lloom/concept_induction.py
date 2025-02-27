@@ -314,24 +314,45 @@ def adaptive_cluster_helper(
     if os.path.exists(embedding_file):
         with open(embedding_file, "rb") as f:
             embeddings = pickle.load(f)
+        print(f"✅ Loaded cached embeddings: {len(embeddings)}")
     else:
-        embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
-        with open(embedding_file, "wb") as f:
-            pickle.dump(embeddings, f)
-    
-    # 🔍 Debug embedding length
-    print(f"🔍 Expected {len(text_vals)} embeddings, got {len(embeddings)}")
-    
-    # ⚠️ If mismatch, regenerate embeddings
-    if len(embeddings) != len(text_vals):
-        print("⚠️ Mismatch in embeddings! Regenerating...")
+        print("🛠 No cached embeddings found. Generating new ones...")
         embeddings, tokens = get_embeddings(embed_model, text_vals)
         with open(embedding_file, "wb") as f:
             pickle.dump(embeddings, f)
     
-    # Ensure embeddings are a valid NumPy array
+    # 🔍 Debug: Check text values
+    print(f"🔍 Checking text values: Found {len(text_vals)} documents")
+    empty_texts = [t for t in text_vals if not t.strip()]
+    if empty_texts:
+        print(f"⚠️ Warning: {len(empty_texts)} empty texts found! They might not generate embeddings.")
+    
+    # 🔍 Debug: Check embedding count
+    print(f"🔍 Expected {len(text_vals)} embeddings, got {len(embeddings)}")
+    
+    # 🔄 Force Regeneration if Mismatch
+    if len(embeddings) != len(text_vals):
+        print("⚠️ Mismatch detected! Regenerating embeddings...")
+        
+        # Delete the cache file (force fresh computation)
+        if os.path.exists(embedding_file):
+            os.remove(embedding_file)
+        
+        embeddings, tokens = get_embeddings(embed_model, text_vals)
+        
+        # Ensure embeddings are valid before caching
+        if len(embeddings) == len(text_vals):
+            print("✅ Embeddings successfully regenerated and match text count!")
+            with open(embedding_file, "wb") as f:
+                pickle.dump(embeddings, f)
+        else:
+            print(f"❌ Error: Regeneration failed again! Got {len(embeddings)} embeddings for {len(text_vals)} texts.")
+            raise ValueError("Failed to regenerate embeddings correctly.")
+    
+    # Convert embeddings to a proper NumPy array
     embeddings = np.array(embeddings)
-    print(f"✅ Embeddings shape: {embeddings.shape}")
+    print(f"✅ Final embeddings shape: {embeddings.shape}")
+
     
     # Fit BERTopic with corrected embeddings
     topics, probs = topic_model.fit_transform(text_vals, embeddings)
