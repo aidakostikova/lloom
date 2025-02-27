@@ -229,7 +229,7 @@ import numpy as np
 import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-embedding_file = "/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings_EvidenceACL.pkl"
+embedding_file = "/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/embeddings.pkl"
 
 def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model, embedding_file="embeddings.pkl"):
     id_vals = in_df[doc_id_col].tolist()
