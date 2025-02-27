@@ -427,6 +427,8 @@ class lloom:
                 print("Cancelled generation")
                 return
 
+        #### SKIPPING SUMMARIZATION ####
+        """
         # Run concept generation
         filter_n_quotes = params["filter_n_quotes"]
         if (filter_n_quotes > 1) and (custom_prompts["distill_filter"] is not None):
@@ -456,8 +458,6 @@ class lloom:
         # Define a save path for summarized data
         save_path = "/content/drive/MyDrive/Limitations_of_LLLMs/7.Clustering/LLooM/saved_summaries.pkl"
 
-        #### SKIPPING SUMMARIZATION ####
-        """
         # Check if summarized results exist
         if os.path.exists(save_path):
             print("✅ Using previously saved summarized results...")
