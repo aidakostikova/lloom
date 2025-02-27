@@ -243,6 +243,23 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
         embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
         with open(embedding_file, "wb") as f:
             pickle.dump(embeddings, f)
+    
+    # 🔍 Debug embedding length
+    print(f"🔍 Expected {len(text_vals)} embeddings, got {len(embeddings)}")
+    
+    # ⚠️ If mismatch, regenerate embeddings
+    if len(embeddings) != len(text_vals):
+        print("⚠️ Mismatch in embeddings! Regenerating...")
+        embeddings, tokens = get_embeddings(embed_model, text_vals)
+        with open(embedding_file, "wb") as f:
+            pickle.dump(embeddings, f)
+    
+    # Ensure embeddings are a valid NumPy array
+    embeddings = np.array(embeddings)
+    print(f"✅ Embeddings shape: {embeddings.shape}")
+    
+    # Fit BERTopic with corrected embeddings
+    topics, probs = topic_model.fit_transform(text_vals, embeddings)
 
     # Configure UMAP and HDBSCAN for BERTopic
     umap_model = umap.UMAP(n_neighbors=25, n_components=5, min_dist=0.0, metric='cosine')
