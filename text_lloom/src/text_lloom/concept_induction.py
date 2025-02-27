@@ -318,6 +318,24 @@ def adaptive_cluster_helper(
         embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
         with open(embedding_file, "wb") as f:
             pickle.dump(embeddings, f)
+    
+    # 🔍 Debug embedding length
+    print(f"🔍 Expected {len(text_vals)} embeddings, got {len(embeddings)}")
+    
+    # ⚠️ If mismatch, regenerate embeddings
+    if len(embeddings) != len(text_vals):
+        print("⚠️ Mismatch in embeddings! Regenerating...")
+        embeddings, tokens = get_embeddings(embed_model, text_vals)
+        with open(embedding_file, "wb") as f:
+            pickle.dump(embeddings, f)
+    
+    # Ensure embeddings are a valid NumPy array
+    embeddings = np.array(embeddings)
+    print(f"✅ Embeddings shape: {embeddings.shape}")
+    
+    # Fit BERTopic with corrected embeddings
+    topics, probs = topic_model.fit_transform(text_vals, embeddings)
+
 
     # Grid search over clustering parameters
     param_combinations = list(itertools.product(
