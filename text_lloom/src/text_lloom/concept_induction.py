@@ -353,11 +353,6 @@ def adaptive_cluster_helper(
     embeddings = np.array(embeddings)
     print(f"✅ Final embeddings shape: {embeddings.shape}")
 
-    
-    # Fit BERTopic with corrected embeddings
-    topics, probs = topic_model.fit_transform(text_vals, embeddings)
-
-
     # Grid search over clustering parameters
     param_combinations = list(itertools.product(
         umap_params["n_neighbors"],
@@ -367,22 +362,22 @@ def adaptive_cluster_helper(
         hdbscan_params["min_samples"],
         bertopic_params["min_topic_size"]
     ))
-
+    
     best_cluster_df = None
     best_num_clusters = 0
     best_outlier_ratio = 1.0
-
+    
     for attempt, params in enumerate(random.sample(param_combinations, max_attempts)):
         print(f"\n🔄 Attempt {attempt+1}/{max_attempts} with params: {params}")
-
+    
         # Unpack params
         n_neighbors, n_components, min_dist, min_cluster_size, min_samples, min_topic_size = params
-
+    
         # Configure models
         umap_model = umap.UMAP(n_neighbors=n_neighbors, n_components=n_components, min_dist=min_dist, metric='cosine')
         hdbscan_model = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric='euclidean', prediction_data=True)
         vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
-
+    
         # Initialize BERTopic
         topic_model = BERTopic(
             umap_model=umap_model,
@@ -392,9 +387,18 @@ def adaptive_cluster_helper(
             nr_topics=8,
             calculate_probabilities=True
         )
-
+    
         # Fit BERTopic
-        topics, probs = topic_model.fit_transform(text_vals, embeddings)
+        try:
+            topics, probs = topic_model.fit_transform(text_vals, embeddings)
+        except Exception as e:
+            print(f"❌ BERTopic failed: {e}")
+            continue  # Skip to the next attempt
+    
+    # 🔍 Ensure topic_model was successfully initialized
+    if topic_model is None:
+        raise ValueError("❌ Error: BERTopic model was never initialized! Check parameter tuning loop.")
+
 
         # Handle outliers with soft clustering
         final_topics = [
