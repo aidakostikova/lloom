@@ -284,9 +284,9 @@ import random
 
 def adaptive_cluster_helper(
     in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="embeddings.pkl",
-    umap_params={"n_neighbors": [25, 30, 50], "n_components": [5, 10], "min_dist": [0.0, 0.1]},
-    hdbscan_params={"min_cluster_size": [25, 28], "min_samples": [5, 10]},
-    bertopic_params={"min_topic_size": [10, 12, 15]},
+    umap_params={"n_neighbors": [15, 25, 30, 50], "n_components": [10, 15, 20], "min_dist": [0.0, 0.1]},
+    hdbscan_params={"min_cluster_size": [10, 15, 20, 25], "min_samples": [2, 5, 10]},
+    bertopic_params={"min_topic_size": [5, 8, 10]},
     max_attempts=20,  # Number of iterations to find good clustering
     outlier_threshold=0.2,
     target_cluster_range=(7, 8)
@@ -302,6 +302,14 @@ def adaptive_cluster_helper(
         embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
         with open(embedding_file, "wb") as f:
             pickle.dump(embeddings, f)
+
+    from sklearn.metrics.pairwise import cosine_similarity
+    import numpy as np
+    
+    sim_matrix = cosine_similarity(embeddings)
+    avg_sim = np.mean(sim_matrix)
+    print(f"🔍 Average similarity between embeddings: {avg_sim:.4f}")
+
 
     # Grid search over clustering parameters
     param_combinations = list(itertools.product(
