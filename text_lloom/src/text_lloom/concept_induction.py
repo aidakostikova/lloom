@@ -221,103 +221,142 @@ async def distill_summarize(text_df, doc_col, doc_id_col, model, n_bullets="2-4"
     return bullet_df
 
 
-def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model):
-    # OpenAI embeddings with HDBSCAN clustering
+from bertopic import BERTopic
+import umap
+import hdbscan
+import numpy as np
+import pickle
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col, embed_model, embedding_file="embeddings.pkl"):
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
 
-    embeddings, tokens = get_embeddings(embed_model, text_vals)
-    umap_model = umap.UMAP(
-        n_neighbors=15,
-        n_components=5,
-        min_dist=0.0,
-        metric='cosine',
-    )
-    umap_embeddings = umap_model.fit_transform(embeddings)
-    hdb = HDBSCAN(
-        min_cluster_size=min_cluster_size, 
-        metric='euclidean', 
-        cluster_selection_method='leaf', 
-        prediction_data=True
-    )
-    res = hdb.fit(umap_embeddings)
-    clusters = res.labels_
+    # Load or generate embeddings
+    if os.path.exists(embedding_file):
+        with open(embedding_file, "rb") as f:
+            embeddings = pickle.load(f)
+    else:
+        embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
+        with open(embedding_file, "wb") as f:
+            pickle.dump(embeddings, f)
 
-    # Print the number of clusters (excluding noise points labeled as -1)
-    num_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
-    print(f"Generated {num_clusters} clusters.")
+    # Configure UMAP and HDBSCAN for BERTopic
+    umap_model = umap.UMAP(n_neighbors=25, n_components=5, min_dist=0.0, metric='cosine')
+    hdbscan_model = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=5, metric='euclidean', prediction_data=True)
+    vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
 
-    rows = list(zip(id_vals, text_vals, clusters)) # id_col, text_col, cluster_id_col
-    cluster_df = pd.DataFrame(rows, columns=[doc_id_col, doc_col, cluster_id_col])
-    cluster_df = cluster_df.sort_values(by=[cluster_id_col])
-    
+    # Initialize BERTopic
+    topic_model = BERTopic(
+        umap_model=umap_model,
+        hdbscan_model=hdbscan_model,
+        vectorizer_model=vectorizer,
+        min_topic_size=10,  # Adjust based on need
+        nr_topics=8,
+        calculate_probabilities=True
+    )
+
+    # Apply BERTopic clustering
+    topics, probs = topic_model.fit_transform(text_vals, embeddings)
+
+    # Assign topics, handling outliers softly
+    final_topics = [
+        topic if topic != -1 else np.argmax(prob) if isinstance(prob, list) and len(prob) > 0 else -1
+        for topic, prob in zip(topics, probs)
+    ]
+
+    # Save results
+    cluster_df = pd.DataFrame({
+        doc_id_col: id_vals,
+        doc_col: text_vals,
+        cluster_id_col: final_topics
+    })
+
     return cluster_df, tokens
 
+
+import itertools
+import random
+
 def adaptive_cluster_helper(
-    in_df, doc_col, doc_id_col, cluster_id_col, embed_model,
-    min_cluster_size_range=(15, 20),  # Range of min cluster sizes to try
-    min_samples_range=(5, 7),        # Range of min_samples to try
-    umap_n_components_range=(5, 7),   # Range of UMAP components to try
-    max_attempts=35,                  # Max iterations to find good clustering
-    outlier_threshold=0.2,            # Max % of outliers allowed
-    target_cluster_range=(6, 15)      # Desired cluster range
+    in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="embeddings.pkl",
+    umap_params={"n_neighbors": [25, 30, 50], "n_components": [5, 10], "min_dist": [0.0, 0.1]},
+    hdbscan_params={"min_cluster_size": [25, 28], "min_samples": [5, 10]},
+    bertopic_params={"min_topic_size": [10, 12, 15]},
+    max_attempts=20,  # Number of iterations to find good clustering
+    outlier_threshold=0.2,
+    target_cluster_range=(7, 8)
 ):
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
-    embeddings, tokens = get_embeddings(embed_model, text_vals)
+
+    # Load or generate embeddings
+    if os.path.exists(embedding_file):
+        with open(embedding_file, "rb") as f:
+            embeddings = pickle.load(f)
+    else:
+        embeddings, tokens = get_embeddings(embed_model, text_vals)  # Ensure tokens are tracked
+        with open(embedding_file, "wb") as f:
+            pickle.dump(embeddings, f)
+
+    # Grid search over clustering parameters
+    param_combinations = list(itertools.product(
+        umap_params["n_neighbors"],
+        umap_params["n_components"],
+        umap_params["min_dist"],
+        hdbscan_params["min_cluster_size"],
+        hdbscan_params["min_samples"],
+        bertopic_params["min_topic_size"]
+    ))
 
     best_cluster_df = None
     best_num_clusters = 0
     best_outlier_ratio = 1.0
-    attempt = 0
 
-    while attempt < max_attempts:
-        attempt += 1
-        print(f"\n🔄 Attempt {attempt}/{max_attempts}...")
+    for attempt, params in enumerate(random.sample(param_combinations, max_attempts)):
+        print(f"\n🔄 Attempt {attempt+1}/{max_attempts} with params: {params}")
 
-        # Dynamically adjust parameters
-        min_cluster_size = random.randint(*min_cluster_size_range)
-        min_samples = random.randint(*min_samples_range)
-        n_components = random.randint(*umap_n_components_range)
+        # Unpack params
+        n_neighbors, n_components, min_dist, min_cluster_size, min_samples, min_topic_size = params
 
-        print(f"🔧 Trying min_cluster_size={min_cluster_size}, min_samples={min_samples}, n_components={n_components}")
+        # Configure models
+        umap_model = umap.UMAP(n_neighbors=n_neighbors, n_components=n_components, min_dist=min_dist, metric='cosine')
+        hdbscan_model = hdbscan.HDBSCAN(min_cluster_size=min_cluster_size, min_samples=min_samples, metric='euclidean', prediction_data=True)
+        vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
 
-        # UMAP dimensionality reduction
-        umap_model = umap.UMAP(
-            n_neighbors=25,
-            n_components=n_components,
-            min_dist=0.1,
-            metric='cosine'
+        # Initialize BERTopic
+        topic_model = BERTopic(
+            umap_model=umap_model,
+            hdbscan_model=hdbscan_model,
+            vectorizer_model=vectorizer,
+            min_topic_size=min_topic_size,
+            nr_topics=8,
+            calculate_probabilities=True
         )
-        umap_embeddings = umap_model.fit_transform(embeddings)
 
-        # HDBSCAN clustering
-        hdb = HDBSCAN(
-            min_cluster_size=min_cluster_size,
-            min_samples=min_samples,
-            metric='euclidean',
-            cluster_selection_method='eom'
-        )
-        res = hdb.fit(umap_embeddings)
-        clusters = res.labels_
+        # Fit BERTopic
+        topics, probs = topic_model.fit_transform(text_vals, embeddings)
 
-        # Calculate number of clusters and outlier ratio
-        num_clusters = len(set(clusters)) - (1 if -1 in clusters else 0)
-        outlier_ratio = np.sum(clusters == -1) / len(clusters)
+        # Handle outliers with soft clustering
+        final_topics = [
+            topic if topic != -1 else np.argmax(prob) if isinstance(prob, list) and len(prob) > 0 else -1
+            for topic, prob in zip(topics, probs)
+        ]
+
+        num_clusters = len(set(final_topics)) - (1 if -1 in final_topics else 0)
+        outlier_ratio = (np.array(final_topics) == -1).sum() / len(final_topics)
 
         print(f"➡ Found {num_clusters} clusters | Outlier Ratio: {outlier_ratio:.2%}")
 
-        # Check if this clustering satisfies criteria
+        # Check if clustering is valid
         if (target_cluster_range[0] <= num_clusters <= target_cluster_range[1]) and (outlier_ratio < outlier_threshold):
             print("✅ Suitable clustering found!")
-            best_cluster_df = pd.DataFrame(zip(id_vals, text_vals, clusters), columns=[doc_id_col, doc_col, cluster_id_col])
-            best_cluster_df = best_cluster_df.sort_values(by=[cluster_id_col])
-            return best_cluster_df, tokens
+            cluster_df = pd.DataFrame({doc_id_col: id_vals, doc_col: text_vals, cluster_id_col: final_topics})
+            return cluster_df, tokens
 
-        # Keep track of best attempt
+        # Track the best clustering attempt
         if abs(num_clusters - np.mean(target_cluster_range)) < abs(best_num_clusters - np.mean(target_cluster_range)) and outlier_ratio < best_outlier_ratio:
-            best_cluster_df = pd.DataFrame(zip(id_vals, text_vals, clusters), columns=[doc_id_col, doc_col, cluster_id_col])
-            best_cluster_df = best_cluster_df.sort_values(by=[cluster_id_col])
+            best_cluster_df = pd.DataFrame({doc_id_col: id_vals, doc_col: text_vals, cluster_id_col: final_topics})
             best_num_clusters = num_clusters
             best_outlier_ratio = outlier_ratio
 
