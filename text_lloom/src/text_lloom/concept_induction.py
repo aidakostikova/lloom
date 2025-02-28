@@ -282,8 +282,8 @@ import random
 
 def adaptive_cluster_helper(
     in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="embeddings.pkl",
-    umap_params={"n_neighbors": [15, 25, 30, 50], "n_components": [5, 10, 15], "min_dist": [0.0, 0.1]},
-    hdbscan_params={"min_cluster_size": [10, 15, 20, 25], "min_samples": [2, 5, 10]},
+    umap_params={"n_neighbors": [15, 25, 30, 50], "n_components": [5, 10], "min_dist": [0.0, 0.1]},
+    hdbscan_params={"min_cluster_size": [10, 15, 20], "min_samples": [2, 5, 10]},
     bertopic_params={"min_topic_size": [5, 8, 10]},
     max_attempts=30,  # Number of iterations to find good clustering
     outlier_threshold=0.35,
@@ -340,7 +340,7 @@ def adaptive_cluster_helper(
             hdbscan_model=hdbscan_model,
             vectorizer_model=vectorizer,
             min_topic_size=min_topic_size,
-            nr_topics=8,
+            nr_topics=4,
             calculate_probabilities=True
         )
 
