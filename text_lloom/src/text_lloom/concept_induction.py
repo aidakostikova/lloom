@@ -255,7 +255,7 @@ def cluster_helper(in_df, doc_col, doc_id_col, min_cluster_size, cluster_id_col,
         hdbscan_model=hdbscan_model,
         vectorizer_model=vectorizer,
         min_topic_size=10,  # Adjust based on need
-        nr_topics=8,
+        nr_topics=10,
         calculate_probabilities=True
     )
 
@@ -287,7 +287,7 @@ def adaptive_cluster_helper(
     bertopic_params={"min_topic_size": [5, 8, 10]},
     max_attempts=30,  # Number of iterations to find good clustering
     outlier_threshold=0.35,
-    target_cluster_range=(5, 10)
+    target_cluster_range=(7, 10)
 ):
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
