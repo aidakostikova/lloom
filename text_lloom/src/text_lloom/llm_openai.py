@@ -140,10 +140,10 @@ MODEL_INFO = {
         "cost": (10/TOKENS_1M, 30/TOKENS_1M),
         "rate_limit": (20, 10),  # = 20*6 = 120 rpm
     },
-    "o3-mini-2025-01-31": {
-        "context_window": 16385,
-        "cost": (1.10 / 1_000_000, 4.40 / 1_000_000),
-        "rate_limit": (20, 10),  # = 300*6 = 1800 rpm
+    "deepseek-chat": {
+        "context_window": 128000,
+        "cost": (0.27/TOKENS_1M, 1.10/TOKENS_1M),
+        "rate_limit": (20, 10),  # = 20*6 = 120 rpm
     },
     "gpt-4o": {
         "context_window": 128000,
