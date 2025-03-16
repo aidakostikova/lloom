@@ -24,25 +24,32 @@ def setup_embed_fn(api_key):
 async def call_llm_fn(model, prompt):
     if "system_prompt" not in model.args:
         model.args["system_prompt"] = "You are a helpful assistant who helps with identifying patterns in text examples."
-    if "temperature" not in model.args:
-        model.args["temperature"] = 0
 
     # Preprocessing (custom to OpenAI setup)
     prompt = model.truncate_fn(model, prompt, out_token_alloc=1500)
-        
-    res = await model.client.chat.completions.create(
-        model=model.name,
-        temperature=model.args["temperature"],
-        messages=[
+    
+    # Check if temperature is supported by the model
+    openai_params = {
+        "model": model.name,
+        "messages": [
             {"role": "system", "content": model.args["system_prompt"]},
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": prompt}
         ]
-    )
-    res_parsed = res.choices[0].message.content if res else None
-    in_tokens = (res.usage.prompt_tokens) if res is not None else 0
-    out_tokens = (res.usage.completion_tokens) if res is not None else 0
-    tokens = (in_tokens, out_tokens)
-    return res_parsed, tokens
+    }
+    
+    if "temperature" in model.args and model.name not in ["o3-mini-2025-01-31"]:
+        openai_params["temperature"] = model.args["temperature"]
+
+    try:
+        res = await model.client.chat.completions.create(**openai_params)
+        res_parsed = res.choices[0].message.content if res else None
+        in_tokens = res.usage.prompt_tokens if res is not None else 0
+        out_tokens = res.usage.completion_tokens if res is not None else 0
+        tokens = (in_tokens, out_tokens)
+        return res_parsed, tokens
+    except Exception as e:
+        print(f"⚠️ Error calling OpenAI model {model.name}: {e}")
+        return None, (0, 0)
 
 def call_embed_fn(model, texts_arr):
     resp = model.client.embeddings.create(
