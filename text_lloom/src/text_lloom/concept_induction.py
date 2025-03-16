@@ -291,7 +291,7 @@ def adaptive_cluster_helper(
     bertopic_params={"min_topic_size": [20, 25], "nr_topics": [15, 16, 17]},  # ✅ Corrected
     max_attempts=30,  # Number of iterations to find good clustering
     outlier_threshold=0.45,
-    target_cluster_range=(7, 15)
+    target_cluster_range=(8, 15)
 ):
     
     id_vals = in_df[doc_id_col].tolist()
