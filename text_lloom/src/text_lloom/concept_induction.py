@@ -286,14 +286,14 @@ import random
 
 def adaptive_cluster_helper(
     in_df, doc_col, doc_id_col, cluster_id_col, embed_model, embedding_file="embeddings.pkl",
-    umap_params = {"n_neighbors": [15, 25, 30, 50], "n_components": [5, 10], "min_dist": [0.05, 0.1]}  # ✅ Corrected
-    hdbscan_params = {"min_cluster_size": [35, 40, 50], "min_samples": [10, 15, 20]}  # ✅ Corrected
-    bertopic_params = {"min_topic_size": [20, 25], "nr_topics": [15, 16, 17]}  # ✅ Corrected
-
+    umap_params={"n_neighbors": [15, 25, 30, 50], "n_components": [5, 10], "min_dist": [0.05, 0.1]},  # ✅ Corrected
+    hdbscan_params={"min_cluster_size": [35, 40, 50], "min_samples": [10, 15, 20]},  # ✅ Corrected
+    bertopic_params={"min_topic_size": [20, 25], "nr_topics": [15, 16, 17]},  # ✅ Corrected
     max_attempts=30,  # Number of iterations to find good clustering
-    outlier_threshold=0.35,
-    target_cluster_range=(7, 10)
+    outlier_threshold=0.45,
+    target_cluster_range=(7, 15)
 ):
+    
     id_vals = in_df[doc_id_col].tolist()
     text_vals = in_df[doc_col].tolist()
 
